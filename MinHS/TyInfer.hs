@@ -90,15 +90,43 @@ unquantify' i s (Forall x t) = do x' <- fresh
                                               (substQType (x =:TypeVar (show i)) t)
 
 unify :: Type -> Type -> TC Subst
--- unify (TypeVar a)(TypeVar b) = if a == b then
---   return emptySubst
---   else return a := b
 
-unify = error "oh shid"
+unify (TypeVar a)(TypeVar b) = if a == b 
+  then return emptySubst
+  else return (b =: (TypeVar a))
+
+unify (Base a)(Base b) = if a == b 
+  then return emptySubst
+  else error "Oh lord he comin'"
+
+unify (Prod aa ab) (Prod ba bb) = do 
+  s <- unify aa ba 
+  ss <- unify (substitute s ab) (substitute s bb)
+  return $ s <> ss
+
+unify (Arrow aa ab) (Arrow ba bb) = do   
+  s <- unify aa ba 
+  ss <- unify (substitute s ab) (substitute s bb)
+  return $ s <> ss
+
+unify (Sum aa ab) (Sum ba bb) = do   
+  s <- unify aa ba 
+  ss <- unify (substitute s ab) (substitute s bb)
+  return $ s <> ss  
+
+unify (TypeVar a) b = if notElem a (tv b) then
+  return $ (a =: b) 
+  else error "Oh no! v be in t that be whack"
+
+unify b (TypeVar a) = unify (TypeVar a) b
+
+unify _ _= error "oh shid"
+
+
 --unify tau1 tau2 = case (tau1, tau2) of 
-  -- Both are variables
-  -- Both are primitive
-  -- Both are product types
+  -- Both are variables DONE
+  -- Both are primitive DONE
+  -- Both are product types DONE
   -- Both are function (Arrow) types
   -- Both are sum types
   -- One is a TypeVar, one is another
@@ -117,34 +145,40 @@ inferProgram env [Bind f t xs e] = do
   
 
 inferExp :: Gamma -> Exp -> TC (Exp, Type, Subst)
--- Case of Num
+-- Num --
 inferExp g (Num i) = return ((Num i), Base Int, emptySubst) 
 
--- Case of Con
--- inferExp g (Con c) = case constType c of 
---   just Ty Base Bool -> return ((Con c), Base Bool, emptySubst) 
-
+-- Con --
 inferExp g (Con c) = case constType c of 
     Just t -> do 
       t' <- unquantify t
       return (Con c, t', emptySubst)
     Nothing       -> typeError $ NoSuchConstructor c 
--- --Case of Prim
 
+-- Prim --
 inferExp g (Prim o) = do 
   t' <- unquantify (primOpType o)
   return (Prim o, t', emptySubst)
 
-
---Case of App 
---inferExp g (App e1 e2) = do
-  --(e1', tau1, tee1) <- inferExp g e1 
-  --(e2', tau2, tee2) <- inferExp (substGamma (tee1) g) e2
-  --a_fresh <- fresh
-  --U <- unify _ _
-  --return ( , ,  )
+-- App --
+inferExp g (App e1 e2) = do
+  (e1', type1, subs1) <- inferExp g e1 
+  (e2', type2, subs2) <- inferExp (substGamma subs1 g) e2
+  aFresh              <- fresh
+  u                   <- unify (substitute subs2 type1) (Arrow type2 aFresh)
+  return (App (allTypes (substQType (u <> subs2)) e1') e2', (substitute u aFresh) , (u <> subs2 <> subs1))
   
-
+-- If --
+inferExp g (If e e1 e2) = do
+  (e', typeB, subsB) <- inferExp g e
+  u                  <- unify typeB (Base Bool)
+  case substitute (subsB <> u) typeB of
+    Base Bool -> do
+      (e1', type1, subs1) <- inferExp (substGamma (u <> subsB) g) e1
+      (e2', type2, subs2) <- inferExp (substGamma (subs1 <> u <> subsB) g) e2
+      u'                  <- unify (substitute subs2 type1) type2
+      return ((If e' e1' e2'), substitute u' type2, u' <> subs2 <> subs1 <> u <> subsB) 
+    t                     -> typeError $ TypeMismatch (Base Bool) t
 
 
 inferExp g _ = error "Implement me!"
