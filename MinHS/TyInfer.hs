@@ -120,22 +120,14 @@ unify (TypeVar a) b = if notElem a (tv b) then
 
 unify b (TypeVar a) = unify (TypeVar a) b
 
-unify _ _= error "oh shid"
+unify big fInTheChat = error "There is no unity here"
 
 
---unify tau1 tau2 = case (tau1, tau2) of 
-  -- Both are variables DONE
-  -- Both are primitive DONE
-  -- Both are product types DONE
-  -- Both are function (Arrow) types
-  -- Both are sum types
-  -- One is a TypeVar, one is another
-    -- Use 'tv' to convert the other type to a [id], then you can use elem to check if the TypeVar is in the other one
-    
 
 generalise :: Gamma -> Type -> QType
-generalise g t = error "implement me"
--- Use tv just like in unify to turn the type into a list of ids, then for each one (probably recursive function then) add Forall <that id> to the front of the type
+generalise g t = Forall ( (tv t) \ (tv g)) t
+-- Use tv just like in unify to turn the type into a list of ids, then for each one 
+-- (probably recursive function then) add Forall <that id> to the front of the type
 
 
 inferProgram :: Gamma -> Program -> TC (Program, Type, Subst)
