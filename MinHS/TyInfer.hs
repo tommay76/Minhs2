@@ -125,7 +125,7 @@ unify big fInTheChat = error "There is no unity here"
 
 
 generalise :: Gamma -> Type -> QType
-generalise g t = Forall ( (tv t) \ (tv g)) t
+generalise g t = 
 -- Use tv just like in unify to turn the type into a list of ids, then for each one 
 -- (probably recursive function then) add Forall <that id> to the front of the type
 
