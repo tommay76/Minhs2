@@ -8,7 +8,7 @@ import MinHS.TCMonad
 import Data.Monoid (Monoid (..), (<>))
 import Data.Foldable (foldMap)
 import Data.List (nub, union, (\\))
-
+import Debug.Trace
 primOpType :: Op -> QType
 primOpType Gt   = Ty $ Base Int `Arrow` (Base Int `Arrow` Base Bool)
 primOpType Ge   = Ty $ Base Int `Arrow` (Base Int `Arrow` Base Bool)
@@ -190,17 +190,38 @@ inferExp g (Case e [Alt "Inl" [x] e1, Alt "Inr" [y] e2]) = do
   return (Case eE [Alt "Inl" [x] e1', Alt "Inr" [y] e2'], substitute (u' <> u) type2, u' <> u <> subs2 <> subs1 <> subsE)
 -- inferExp g (Case e _) = typeError MalformedAlternatives
 
--- recfun -- 
--- inferExp g (Recfun (Bind id t ids e)) = do
---   a1 <- fresh 
---   a2 <- fresh
---   -- g1 <- bindFunction  g ids    --  xs:a2
---   let g2 = E.addAll g1 [(id, Ty a2), (ids, Ty a1)] --  f: a1
---   (e', type', subs')  <- inferExp g2 e
---   u <- unify (substitute subs' a2) (Arrow  (substitute subs' a1) type')
---   return (Recfun (Bind id t ids e'),substitute u type', u <> subs')
+--Let \
+inferExp g (Let [Bind id t ids e1] e2) = do 
+  (e1', type1', subs1')      <- inferExp g e1 
+  let g' = substGamma subs1' g 
+  (e2', type2', subs2')      <- inferExp  (E.add g' (id, generalise g' type1')) e2
+  return ((Let [Bind id (Just (generalise (substGamma subs2' g') type1')) ids e1'] e2'), type2', subs1' <> subs2') 
+  
 
--- inferExp g (Recfun bind) = do
+
+-- recfun -- 
+inferExp g (Recfun (Bind id t ids e)) = do
+  a1 <- fresh 
+  a2 <- fresh
+  -- g1 <- bindFunction  g ids    --  xs:a2
+  let g2 = E.addAll g [(id, Ty a2), ((head ids), Ty a1)] --  f: a1
+    in do 
+      a2 <- fresh
+      (e', type', subs')  <- inferExp g2 e
+      u <- unify (substitute subs' a2) (Arrow  (substitute subs' a1) type')
+      
+      
+      return (Recfun (Bind id (Just (Ty (Arrow (substitute subs' a1 ) type'))) ids e'), Arrow (substitute subs' a1 ) type', u <> subs')
+
+
+-- Variables 
+inferExp g (Var x) = case E.lookup g x of 
+  Just thing -> do 
+    thing'  <- unquantify thing
+    return ((Var x), thing', mempty)
+  Nothing -> typeError (NoSuchVariable x)
+
+      -- inferExp g (Recfun bind) = do
 
 -- Let Bind -- 
 -- inferExp g (Let binds e) = do
@@ -209,15 +230,6 @@ inferExp g (Case e [Alt "Inl" [x] e1, Alt "Inr" [y] e2]) = do
 --   return ((Let e1' e2'), type2, subs2 <> subs1)
 
 
-inferExp g _ = error "Implement me!"
+inferExp g thing = (error "Implement me!")
 
 
--- bindFunc :: Gamma -> [Bind] -> TC ([Bind], Gamma, Subst)
-
-bindFunction :: Gamma -> [Id] -> TC Gamma
-bindFunction g [] = return $ g 
-bindFunction g (x:xs) = do 
-  alpha <- fresh
-  bindFunction (E.add g (x, Ty alpha)) xs
-
-bindFunc _ _ = error "Implement me!"
