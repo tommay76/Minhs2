@@ -125,15 +125,17 @@ unify big fInTheChat = error "There is no unity here"
 
 
 generalise :: Gamma -> Type -> QType
-generalise g t = 
--- Use tv just like in unify to turn the type into a list of ids, then for each one 
--- (probably recursive function then) add Forall <that id> to the front of the type
+generalise g t = foldl (\t' -> \x -> Forall x t') (Ty t) (reverse (filter (\x -> not  (elem x (tvGamma g))) (tv t)))
+
+-- Fold instead of recursion, adding a bit of flair ;)
+-- Use tv just like in unify to turn the type into a list of ids, then for each one,
+-- Forall <that id> to the front of the type
 
 
 inferProgram :: Gamma -> Program -> TC (Program, Type, Subst)
-inferProgram env [Bind f t xs e] = do 
-  (e', tau, tee)  <- inferExp env e
-  return ([Bind f (Just (Ty tau)) xs e'], tau, tee)
+inferProgram g [Bind f t xs e] = do 
+  (e', typeP, exp)  <- inferExp g e
+  return ([Bind f (Just (Ty typeP)) xs e'], typeP, exp)
   
 
 inferExp :: Gamma -> Exp -> TC (Exp, Type, Subst)
@@ -172,10 +174,41 @@ inferExp g (If e e1 e2) = do
       return ((If e' e1' e2'), substitute u' type2, u' <> subs2 <> subs1 <> u <> subsB) 
     t                     -> typeError $ TypeMismatch (Base Bool) t
 
+-- Case --
+inferExp g (Case e [Alt "Inl" [x] e1, Alt "Inr" [y] e2]) = do 
+  (eE, typeE, subsE) <- inferExp g e                        -- Base exp
+  a1                  <- fresh                                   --  {x : al}
+  let g1 = E.add g (x, Ty a1)                                    --  T U {x : al}         > inL stuff
+  (e1', type1, subs1)  <- inferExp (substGamma subsE g1) e1      --  t(T U {x : al})  
+  a2                 <- fresh                                         --
+  let g2 = E.add g (y, Ty a2)                                         --  > inR stuff
+  (e2', type2, subs2) <- inferExp (substGamma ( subs1 <> subsE) g2) e2--
+  u                  <- unify (substitute (subs2 <> subs1 <> subsE) (Sum a1 a2)) (substitute (subs2 <> subs1) typeE)  --  > Unification
+  u'                  <- unify (substitute (u <> subs2) type1) (substitute u type2)                                   -- 
+  return (Case eE [Alt "Inl" [x] e1', Alt "Inr" [y] e2'], substitute (u' <> u) type2, u' <> u <> subs2 <> subs1 <> subsE)
+
+-- inferExp g (Recfun (Bind id t ids e)) = do
+--   a1 <- fresh
+--   a2 <- fresh
+--   let g1 = E.add g (id, Ty a1)
+--   let g2 = E.add g1 (ids, Ty a2)
+--   (e', type', subs')  <- inferExp (substGamma subsE g1) e
+   
+
+-- inferExp g (Case e _) = typeError MalformedAlternatives
+-- -- Note: this is the only case you need to handle for case expressions
+-- inferExp g (Recfun bind) = do
+
+-- Let Bind -- 
+-- inferExp g (Let binds e) = do
+--   (e1', type1, subs1) <- bindFunc g binds
+--   (e2', type2, subs2) <- inferExp (type1 <> g <> (generalise (1 <> tv g) type1)) e2
+--   return ((Let e1' e2'), type2, subs2 <> subs1)
+
 
 inferExp g _ = error "Implement me!"
--- -- Note: this is the only case you need to handle for case expressions
--- inferExp g (Case e [Alt "Inl" [x] e1, Alt "Inr" [y] e2])
--- inferExp g (Case e _) = typeError MalformedAlternatives
 
 
+bindFunc :: Gamma -> [Bind] -> TC ([Bind], Gamma, Subst)
+
+bindFunc _ _ = error "Implement me!"
