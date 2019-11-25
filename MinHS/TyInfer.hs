@@ -187,13 +187,14 @@ inferExp g (Case e [Alt "Inl" [x] e1, Alt "Inr" [y] e2]) = do
   u'                  <- unify (substitute (u <> subs2) type1) (substitute u type2)                                   -- 
   return (Case eE [Alt "Inl" [x] e1', Alt "Inr" [y] e2'], substitute (u' <> u) type2, u' <> u <> subs2 <> subs1 <> subsE)
 
--- inferExp g (Recfun (Bind id t ids e)) = do
---   a1 <- fresh
---   a2 <- fresh
---   let g1 = E.add g (id, Ty a1)
---   let g2 = E.add g1 (ids, Ty a2)
---   (e', type', subs')  <- inferExp (substGamma subsE g1) e
-   
+inferExp g (Recfun (Bind id t ids e)) = do
+  a1 <- fresh
+  a2 <- fresh
+  let g1 = E.add g (id, Ty a1)
+  let g2 = E.add g1 (ids, Ty a2)
+  (e', type', subs')  <- inferExp (substGamma subsE g1) e
+  u <- unify (substitute type' a2) (substitute type' a2)
+  return u
 
 -- inferExp g (Case e _) = typeError MalformedAlternatives
 -- -- Note: this is the only case you need to handle for case expressions
