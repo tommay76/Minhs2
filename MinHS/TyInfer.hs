@@ -190,14 +190,15 @@ inferExp g (Case e [Alt "Inl" [x] e1, Alt "Inr" [y] e2]) = do
   return (Case eE [Alt "Inl" [x] e1', Alt "Inr" [y] e2'], substitute (u' <> u) type2, u' <> u <> subs2 <> subs1 <> subsE)
 -- inferExp g (Case e _) = typeError MalformedAlternatives
 
-  -- recfun -- 
+-- recfun -- 
 inferExp g (Recfun (Bind id t ids e)) = do
-  a <- fresh
-  g1 <- bindFunction  g ids
-  let g2 = E.add g1 (id, Ty a)
+  a1 <- fresh 
+  a2 <- fresh
+  -- g1 <- bindFunction  g ids    --  xs:a2
+  let g2 = E.addAll g1 [(id, Ty a2), (ids, Ty a1)] --  f: a1
   (e', type', subs')  <- inferExp g2 e
-  u <- unify (substitute type' a) arrow ( (substitute type' a2) type')
-  return u
+  u <- unify (substitute subs' a2) (Arrow  (substitute subs' a1) type')
+  return (Recfun (Bind id t ids e'),substitute u type', u <> subs')
 
 -- inferExp g (Recfun bind) = do
 
