@@ -139,6 +139,7 @@ inferProgram g [Bind f t xs e] = do
   
 
 inferExp :: Gamma -> Exp -> TC (Exp, Type, Subst)
+
 -- Num --
 inferExp g (Num i) = return ((Num i), Base Int, emptySubst) 
 
@@ -175,6 +176,7 @@ inferExp g (If e e1 e2) = do
     t                     -> typeError $ TypeMismatch (Base Bool) t
 
 -- Case --
+-- Note: this is the only case you need to handle for case expressions
 inferExp g (Case e [Alt "Inl" [x] e1, Alt "Inr" [y] e2]) = do 
   (eE, typeE, subsE) <- inferExp g e                        -- Base exp
   a1                  <- fresh                                   --  {x : al}
@@ -186,18 +188,17 @@ inferExp g (Case e [Alt "Inl" [x] e1, Alt "Inr" [y] e2]) = do
   u                  <- unify (substitute (subs2 <> subs1 <> subsE) (Sum a1 a2)) (substitute (subs2 <> subs1) typeE)  --  > Unification
   u'                  <- unify (substitute (u <> subs2) type1) (substitute u type2)                                   -- 
   return (Case eE [Alt "Inl" [x] e1', Alt "Inr" [y] e2'], substitute (u' <> u) type2, u' <> u <> subs2 <> subs1 <> subsE)
+-- inferExp g (Case e _) = typeError MalformedAlternatives
 
+  -- recfun -- 
 inferExp g (Recfun (Bind id t ids e)) = do
-  a1 <- fresh
-  a2 <- fresh
-  let g1 = E.add g (id, Ty a1)
-  let g2 = E.add g1 (ids, Ty a2)
-  (e', type', subs')  <- inferExp (substGamma subsE g1) e
-  u <- unify (substitute type' a2) (substitute type' a2)
+  a <- fresh
+  g1 <- bindFunction  g ids
+  let g2 = E.add g1 (id, Ty a)
+  (e', type', subs')  <- inferExp g2 e
+  u <- unify (substitute type' a) arrow ( (substitute type' a2) type')
   return u
 
--- inferExp g (Case e _) = typeError MalformedAlternatives
--- -- Note: this is the only case you need to handle for case expressions
 -- inferExp g (Recfun bind) = do
 
 -- Let Bind -- 
@@ -210,6 +211,12 @@ inferExp g (Recfun (Bind id t ids e)) = do
 inferExp g _ = error "Implement me!"
 
 
-bindFunc :: Gamma -> [Bind] -> TC ([Bind], Gamma, Subst)
+-- bindFunc :: Gamma -> [Bind] -> TC ([Bind], Gamma, Subst)
+
+bindFunction :: Gamma -> [Id] -> TC Gamma
+bindFunction g [] = return $ g 
+bindFunction g (x:xs) = do 
+  alpha <- fresh
+  bindFunction (E.add g (x, Ty alpha)) xs
 
 bindFunc _ _ = error "Implement me!"
