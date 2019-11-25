@@ -135,7 +135,7 @@ generalise g t = foldl (\t' -> \x -> Forall x t') (Ty t) (reverse (filter (\x ->
 inferProgram :: Gamma -> Program -> TC (Program, Type, Subst)
 inferProgram g [Bind f t xs e] = do 
   (e', typeP, exp)  <- inferExp g e
-  return ([Bind f (Just (Ty typeP)) xs e'], typeP, exp)
+  return ([Bind f (Just (generalise g typeP)) xs e'], typeP, exp)
   
 
 inferExp :: Gamma -> Exp -> TC (Exp, Type, Subst)
@@ -191,14 +191,14 @@ inferExp g (Case e [Alt "Inl" [x] e1, Alt "Inr" [y] e2]) = do
 -- inferExp g (Case e _) = typeError MalformedAlternatives
 
 -- recfun -- 
-inferExp g (Recfun (Bind id t ids e)) = do
-  a1 <- fresh 
-  a2 <- fresh
-  -- g1 <- bindFunction  g ids    --  xs:a2
-  let g2 = E.addAll g1 [(id, Ty a2), (ids, Ty a1)] --  f: a1
-  (e', type', subs')  <- inferExp g2 e
-  u <- unify (substitute subs' a2) (Arrow  (substitute subs' a1) type')
-  return (Recfun (Bind id t ids e'),substitute u type', u <> subs')
+-- inferExp g (Recfun (Bind id t ids e)) = do
+--   a1 <- fresh 
+--   a2 <- fresh
+--   -- g1 <- bindFunction  g ids    --  xs:a2
+--   let g2 = E.addAll g1 [(id, Ty a2), (ids, Ty a1)] --  f: a1
+--   (e', type', subs')  <- inferExp g2 e
+--   u <- unify (substitute subs' a2) (Arrow  (substitute subs' a1) type')
+--   return (Recfun (Bind id t ids e'),substitute u type', u <> subs')
 
 -- inferExp g (Recfun bind) = do
 
